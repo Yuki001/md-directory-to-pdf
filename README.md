@@ -12,6 +12,7 @@ Convert a directory of Markdown files into a single PDF with an outline hierarch
 - **Global page numbers** — every page is numbered across the entire merged document
 - **PDF outline** — navigable bookmark tree matching the directory layout
 - **Custom fonts** — embed custom monospace/body fonts via `--font-mono` / `--font-content` (file path or system font name)
+- **PDF compression** — automatic Ghostscript compression via `compress-pdf` (bundled binary, no manual setup)
 - **Concurrent-safe** — each run creates a unique temp directory, safe for parallel invocations
 
 ## Prerequisites
@@ -26,6 +27,12 @@ cd tools/md-directory-to-pdf
 npm install
 npx playwright install chromium
 ```
+
+> **Windows note:** If the Ghostscript binary download fails during `npm install` (the `compress-pdf` postinstall has known issues with Windows tar xz support), the tool will still work — PDF compression will simply be skipped. To enable compression, install Ghostscript manually:
+> ```sh
+> choco install ghostscript          # Chocolatey
+> # or download from https://ghostscript.com/releases/gsdnld.html
+> ```
 
 ## Usage
 
@@ -69,7 +76,8 @@ npx tsx src/index.ts ./docs --font-mono C:/Windows/Fonts/CascadiaCode.ttf --font
 1. **Discover** — recursively finds all `.md` files, with `README.md` sorted first in each directory
 2. **Render** — each file is converted to HTML (via marked with syntax highlighting), relative image paths are resolved, custom fonts are embedded via `@font-face`, then Chromium renders the page to a single PDF with Mermaid diagrams inlined
 3. **Merge** — all individual PDFs are concatenated with pdf-lib; global page numbers and a bookmark outline are stamped onto the final document
-4. **Cleanup** — only the per-run temp directory is removed after merging
+4. **Compress** — the merged PDF is compressed via Ghostscript (bundled automatically by `compress-pdf`), typically reducing file size by 40-50%
+5. **Cleanup** — only the per-run temp directory is removed after merging
 
 ---
 
@@ -87,6 +95,7 @@ npx tsx src/index.ts ./docs --font-mono C:/Windows/Fonts/CascadiaCode.ttf --font
 - **全局页码** — 页码贯穿整个合并文档连续编号
 - **PDF 书签大纲** — 可导航的书签树，与目录结构对应
 - **自定义字体** — 通过 `--font-mono` / `--font-content` 嵌入自定义等宽/正文字体（支持文件路径或系统字体名）
+- **PDF 压缩** — 通过 `compress-pdf` 自动调用 Ghostscript 压缩（自动下载二进制，无需手动配置）
 - **并发安全** — 每次运行创建唯一临时目录，可并行调用
 
 ## 环境要求
@@ -101,6 +110,12 @@ cd tools/md-directory-to-pdf
 npm install
 npx playwright install chromium
 ```
+
+> **Windows 注意：** 如果 Ghostscript 二进制在 `npm install` 时下载失败（`compress-pdf` 的 postinstall 在 Windows 上对 tar xz 支持存在已知问题），工具仍可正常使用——仅跳过 PDF 压缩。如需启用压缩，请手动安装 Ghostscript：
+> ```sh
+> choco install ghostscript          # 通过 Chocolatey
+> # 或从 https://ghostscript.com/releases/gsdnld.html 下载
+> ```
 
 ## 用法
 
@@ -144,4 +159,5 @@ npx tsx src/index.ts ./docs --font-mono C:/Windows/Fonts/CascadiaCode.ttf --font
 1. **发现** — 递归查找所有 `.md` 文件，每个目录中 `README.md` 排在最前面
 2. **渲染** — 通过 marked 将每个文件转为 HTML（含语法高亮），解析相对图片路径，通过 `@font-face` 嵌入自定义字体，Chromium 渲染为单页 PDF，内联 Mermaid 图表
 3. **合并** — 使用 pdf-lib 拼接所有 PDF，统一添加全局页码和书签大纲
-4. **清理** — 仅删除当次运行的临时目录
+4. **压缩** — 通过 `compress-pdf` 自动调用 Ghostscript 压缩合并后的 PDF，通常可减少 40-50% 体积
+5. **清理** — 仅删除当次运行的临时目录

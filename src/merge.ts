@@ -9,6 +9,7 @@ import {
   StandardFonts,
   rgb,
 } from 'pdf-lib'
+import { compress } from 'compress-pdf'
 import type { RenderedPdf } from './render'
 
 type OutlineNode =
@@ -44,6 +45,16 @@ export async function mergePdfs(
 
   await fs.mkdir(path.dirname(outputPath), { recursive: true })
   await fs.writeFile(outputPath, await merged.save({ useObjectStreams: true }))
+
+  try {
+    const before = (await fs.stat(outputPath)).size
+    const compressed = await compress(outputPath)
+    await fs.writeFile(outputPath, compressed)
+    const after = (await fs.stat(outputPath)).size
+    console.log(`PDF compressed: ${(before / 1024 / 1024).toFixed(1)} MB -> ${(after / 1024 / 1024).toFixed(1)} MB (${((1 - after / before) * 100).toFixed(0)}% reduction)`)
+  } catch (err) {
+    console.warn('PDF compression skipped (Ghostscript not available)')
+  }
 }
 
 function addOutlines(
