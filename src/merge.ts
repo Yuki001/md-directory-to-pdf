@@ -43,7 +43,7 @@ export async function mergePdfs(
   }
 
   await fs.mkdir(path.dirname(outputPath), { recursive: true })
-  await fs.writeFile(outputPath, await merged.save({ useObjectStreams: false }))
+  await fs.writeFile(outputPath, await merged.save({ useObjectStreams: true }))
 }
 
 function addOutlines(
