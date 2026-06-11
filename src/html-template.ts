@@ -41,17 +41,25 @@ function resolveMermaidJs(): string {
 
 const MERMAID_JS = resolveMermaidJs()
 
-export function buildHtmlPage(bodyHtml: string, title: string, fonts?: PageFonts): string {
+export function buildHtmlPage(bodyHtml: string, title: string, fonts?: PageFonts, fontBasePath?: string): string {
   let fontFaceCss = ''
   let monoPrefix = ''
   let contentPrefix = ''
 
   if (fonts?.mono) {
-    fontFaceCss += `@font-face { font-family: "CustomMono"; src: url(data:application/octet-stream;base64,${fonts.mono.base64}) format('${fonts.mono.format}'); }\n`
+    const ext = formatToExt(fonts.mono.format)
+    const src = fontBasePath
+      ? `url(${fontBasePath}mono.${ext}) format('${fonts.mono.format}')`
+      : `url(data:application/octet-stream;base64,${fonts.mono.base64}) format('${fonts.mono.format}')`
+    fontFaceCss += `@font-face { font-family: "CustomMono"; src: ${src}; }\n`
     monoPrefix = '"CustomMono", '
   }
   if (fonts?.content) {
-    fontFaceCss += `@font-face { font-family: "CustomContent"; src: url(data:application/octet-stream;base64,${fonts.content.base64}) format('${fonts.content.format}'); }\n`
+    const ext = formatToExt(fonts.content.format)
+    const src = fontBasePath
+      ? `url(${fontBasePath}content.${ext}) format('${fonts.content.format}')`
+      : `url(data:application/octet-stream;base64,${fonts.content.base64}) format('${fonts.content.format}')`
+    fontFaceCss += `@font-face { font-family: "CustomContent"; src: ${src}; }\n`
     contentPrefix = '"CustomContent", '
   }
 
@@ -157,4 +165,13 @@ function escapeHtml(value: string): string {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
+}
+
+function formatToExt(format: string): string {
+  switch (format) {
+    case 'opentype': return 'otf'
+    case 'woff2': return 'woff2'
+    case 'woff': return 'woff'
+    default: return 'ttf'
+  }
 }

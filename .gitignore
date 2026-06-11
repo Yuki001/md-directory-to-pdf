@@ -44,3 +44,8 @@ Thumbs.db
 *.njsproj
 *.sln
 *.swp
+
+# test output
+docs/
+test-docs/
+output/

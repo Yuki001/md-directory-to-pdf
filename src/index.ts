@@ -1,22 +1,23 @@
 import path from 'node:path'
 import os from 'node:os'
 import { promises as fs } from 'node:fs'
-import { chromium, devices, type BrowserContext } from 'playwright'
 import { discoverMdFiles } from './discover'
-import { renderMarkdownToPdf, type RenderedPdf } from './render'
-import { mergePdfs } from './merge'
+import { prepareHtmlDocument } from './markdown'
+import { PdfFormat } from './formats/pdf'
 import { embedFont, type PageFonts } from './fonts'
+import type { PreparedDocument } from './types'
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2)
 
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
-    console.log(`Usage: npx tsx src/index.ts <input-dir> [output-pdf] [options]
+    console.log(`Usage: npx tsx src/index.ts <input-dir> [output-file] [options]
 
-  input-dir     Directory containing Markdown (.md) files (searched recursively)
-  output-pdf    Path for the merged output PDF (default: <input-dir-name>.pdf)
-  --temp-dir    Directory for intermediate PDFs (default: system temp dir)
-  --font-mono   Monospace font for code blocks (file path or system font name)
+  input-dir      Directory containing Markdown (.md) files (searched recursively)
+  output-file    Path for the output (default: <input-dir-name>.<ext>)
+  --format       Output format: pdf (default) or epub
+  --temp-dir     Directory for intermediate files (default: system temp dir)
+  --font-mono    Monospace font for code blocks (file path or system font name)
   --font-content Body text font (file path or system font name)
 `)
     process.exit(args.length === 0 ? 1 : 0)
@@ -24,11 +25,11 @@ async function main(): Promise<void> {
 
   const inputDir = path.resolve(args[0])
 
-  // Parse optional args
-  let outputPdf: string | undefined
+  let outputPath: string | undefined
   let tempDir: string | undefined
   let fontMonoSpec: string | undefined
   let fontContentSpec: string | undefined
+  let format: 'pdf' | 'epub' = 'pdf'
 
   for (let i = 1; i < args.length; i++) {
     if (args[i] === '--temp-dir' && i + 1 < args.length) {
@@ -37,23 +38,22 @@ async function main(): Promise<void> {
       fontMonoSpec = args[++i]
     } else if (args[i] === '--font-content' && i + 1 < args.length) {
       fontContentSpec = args[++i]
-    } else if (!args[i].startsWith('--') && !outputPdf) {
-      outputPdf = path.resolve(args[i])
+    } else if (args[i] === '--format' && i + 1 < args.length) {
+      format = args[++i] as 'pdf' | 'epub'
+    } else if (!args[i].startsWith('--') && !outputPath) {
+      outputPath = path.resolve(args[i])
     }
   }
 
-  if (!outputPdf) {
-    outputPdf = path.resolve(`${path.basename(inputDir)}.pdf`)
+  const outputExt = format === 'epub' ? '.epub' : '.pdf'
+  if (!outputPath) {
+    outputPath = path.resolve(`${path.basename(inputDir)}${outputExt}`)
   }
   if (!tempDir) {
     tempDir = os.tmpdir()
   }
 
-  // Create unique per-run directory to avoid clobbering concurrent runs
-  await fs.mkdir(tempDir, { recursive: true })
-  const runTempDir = await fs.mkdtemp(path.join(tempDir, 'md-to-pdf-'))
-
-  // Load custom fonts if specified
+  // Load custom fonts
   const pageFonts: PageFonts = {}
   if (fontMonoSpec) {
     console.log(`Loading mono font: ${fontMonoSpec}`)
@@ -65,9 +65,10 @@ async function main(): Promise<void> {
   }
 
   console.log(`Input directory:  ${inputDir}`)
-  console.log(`Output PDF:       ${outputPdf}`)
-  console.log(`Temp directory:   ${runTempDir}`)
-  // Step 1: discover Markdown files
+  console.log(`Output:           ${outputPath}`)
+  console.log(`Format:           ${format}`)
+
+  // Discover markdown files
   const mdFiles = await discoverMdFiles(inputDir)
   if (mdFiles.length === 0) {
     console.error('No Markdown files found in the input directory.')
@@ -78,40 +79,28 @@ async function main(): Promise<void> {
     console.log(`  ${f.relativePath}`)
   }
 
-  // Step 2: render each to PDF (temp files)
-  await fs.mkdir(runTempDir, { recursive: true })
-
-  const browser = await chromium.launch({ headless: true })
-  const context = await browser.newContext(devices['Desktop Chrome'])
-
-  const renderedEntries: RenderedPdf[] = []
-
-  try {
-    let index = 1
-    for (const entry of mdFiles) {
-      const content = await fs.readFile(entry.absolutePath, 'utf-8')
-      const paddedIndex = String(index).padStart(3, '0')
-      const tempPdfPath = path.join(runTempDir, `${paddedIndex}-${entry.relativePath.replace(/[/.]+/g, '-').replace(/-+/g, '-')}.pdf`)
-
-      console.log(`\nRendering [${index}/${mdFiles.length}]: ${entry.relativePath}`)
-      const result = await renderMarkdownToPdf(context, content, tempPdfPath, entry.relativePath, entry.absolutePath, pageFonts)
-      console.log(`  Title: ${result.title}`)
-      renderedEntries.push(result)
-      index++
-    }
-  } finally {
-    await context.close()
-    await browser.close()
+  // Prepare HTML documents
+  const fontBasePath = format === 'epub' ? 'fonts/' : undefined
+  const docs: PreparedDocument[] = []
+  for (const entry of mdFiles) {
+    const content = await fs.readFile(entry.absolutePath, 'utf-8')
+    const doc = await prepareHtmlDocument(
+      content, entry.absolutePath, entry.relativePath,
+      pageFonts, fontBasePath,
+    )
+    console.log(`  Prepared: ${doc.title}`)
+    docs.push(doc)
   }
 
-  // Step 3: merge into final PDF with outline
-  console.log(`\nMerging ${renderedEntries.length} PDFs with outline...`)
-  await mergePdfs(renderedEntries, outputPdf)
+  // Dispatch to output format (only PDF wired for now; EPUB next phase)
+  if (format === 'epub') {
+    console.error('EPUB format not yet implemented.')
+    process.exit(1)
+  }
+  const outputFormat = new PdfFormat(tempDir)
+  await outputFormat.write(docs, outputPath, pageFonts)
 
-  // Step 4: cleanup temp files
-  await fs.rm(runTempDir, { recursive: true, force: true })
-
-  console.log(`\nDone: ${outputPdf}`)
+  console.log(`\nDone: ${outputPath}`)
 }
 
 main().catch((error) => {

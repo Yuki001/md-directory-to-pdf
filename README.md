@@ -23,7 +23,6 @@ Convert a directory of Markdown files into a single PDF with an outline hierarch
 ## Setup
 
 ```sh
-cd tools/md-directory-to-pdf
 npm install
 npx playwright install chromium
 ```
@@ -106,7 +105,6 @@ npx tsx src/index.ts ./docs --font-mono C:/Windows/Fonts/CascadiaCode.ttf --font
 ## 安装
 
 ```sh
-cd tools/md-directory-to-pdf
 npm install
 npx playwright install chromium
 ```
