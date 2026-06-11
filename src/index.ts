@@ -4,6 +4,7 @@ import { promises as fs } from 'node:fs'
 import { discoverMdFiles } from './discover'
 import { prepareHtmlDocument } from './markdown'
 import { PdfFormat } from './formats/pdf'
+import { EpubFormat } from './formats/epub'
 import { embedFont, type PageFonts } from './fonts'
 import type { PreparedDocument } from './types'
 
@@ -92,12 +93,8 @@ async function main(): Promise<void> {
     docs.push(doc)
   }
 
-  // Dispatch to output format (only PDF wired for now; EPUB next phase)
-  if (format === 'epub') {
-    console.error('EPUB format not yet implemented.')
-    process.exit(1)
-  }
-  const outputFormat = new PdfFormat(tempDir)
+  // Dispatch to output format
+  const outputFormat = format === 'epub' ? new EpubFormat() : new PdfFormat(tempDir)
   await outputFormat.write(docs, outputPath, pageFonts)
 
   console.log(`\nDone: ${outputPath}`)
